@@ -35,12 +35,12 @@ templates = Jinja2Templates(directory="templates")
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # LLM model to use
-LLM_MODEL = "llama-3.1-70b-versatile"
+LLM_MODEL = "qwen/qwen3-32b"
 
 # Pollinations.ai settings
 POLLINATIONS_BASE = "https://image.pollinations.ai/prompt"
-IMAGE_WIDTH = 1024
-IMAGE_HEIGHT = 1024
+IMAGE_WIDTH = 1980
+IMAGE_HEIGHT = 1080
 
 # Thread pool for parallel image generation
 MAX_WORKERS = 5
@@ -187,7 +187,7 @@ def generate_images_parallel(scenes: list[dict], style: str) -> list[dict]:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Serve the main storyboard UI."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.post("/generate")
