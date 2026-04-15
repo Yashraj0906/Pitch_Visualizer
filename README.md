@@ -9,30 +9,26 @@ It combines high-speed LLM reasoning with free open-source diffusion models to g
 ## 🚀 Architecture & Flow
 
 ```mermaid
-sequenceDiagram
-    participant User
-    participant Frontend as Browser UI
-    participant Backend as FastAPI Proxy
-    participant Groq as Groq (Llama 3 LLM)
-    participant Pollinations as Pollinations.ai (Flux)
-
-    User->>Frontend: Enters Story & Clicks Generate
-    Frontend->>Backend: POST /generate (Narrative + Style)
+graph TD
+    A[User Inputs Story] -->|Browser UI| B(FastAPI Backend)
     
-    Note over Backend, Groq: 1. Prompt Engineering
-    Backend->>Groq: Request 4 cinematic prompts
-    Groq-->>Backend: Returns 4 optimized prompts (<15 words)
-    Backend-->>Frontend: Returns JSON with scene descriptions
-    
-    Note over Frontend, Pollinations: 2. Parallel Image Loading
-    loop For each scene (1-4)
-        Frontend->>Backend: GET /image/session/index
-        Backend->>Pollinations: Fetches image via HTTP Proxy
-        Pollinations-->>Backend: Returns Raw WebP/JPG
-        Backend-->>Frontend: Streams Image to UI
+    subgraph 1. Prompt Engineering
+        B -->|Sends Story| C{Llama 3 / Groq}
+        C -->|Returns 4 Prompts| B
     end
     
-    Frontend->>User: Displays Beautiful Glassmorphism Storyboard
+    subgraph 2. Image Generation
+        B -->|Sends Prompts| D{Flux / Pollinations.ai}
+        D -->|Returns 4 Images| B
+    end
+    
+    B -->|Sends Images & Text| E[Glassmorphism Storyboard UI]
+    
+    style A fill:#4F46E5,stroke:#3730A3,color:#fff
+    style B fill:#3B82F6,stroke:#2563EB,color:#fff
+    style C fill:#10B981,stroke:#059669,color:#fff
+    style D fill:#EC4899,stroke:#DB2777,color:#fff
+    style E fill:#8B5CF6,stroke:#7C3AED,color:#fff
 ```
 
 ### 🧠 The Flow in Plain English:
