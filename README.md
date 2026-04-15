@@ -6,7 +6,7 @@ It combines high-speed LLM reasoning with free open-source diffusion models to g
 
 ---
 
-## 🚀 Architecture Diagram
+## 🚀 Architecture & Flow
 
 ```mermaid
 sequenceDiagram
@@ -34,6 +34,13 @@ sequenceDiagram
     
     Frontend->>User: Displays Beautiful Glassmorphism Storyboard
 ```
+
+### 🧠 The Flow in Plain English:
+1. **You Type a Story:** You paste a short story into the website and click "Generate".
+2. **The AI Reads It:** The website sends your story to our Python backend, which forwards it to an advanced text-AI (Groq's Llama 3). 
+3. **Writing the Script:** The text-AI acts like a movie director. It chops your story into 4 scenes and writes a highly descriptive, short visual prompt for each scene (like *"Cinematic shot of a hacker at a computer"*).
+4. **Drawing the Pictures:** Now that we have 4 visual prompts, our backend sends them to an Image-AI (Pollinations' Flux model). 
+5. **The Final Output:** The Image-AI draws the 4 images and sends them back to the website to be displayed inside our stunning glass-themed interface!
 
 ## ✨ "Wow-Factor" Features
 
