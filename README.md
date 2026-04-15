@@ -44,6 +44,17 @@ graph TD
 *   **📥 PDF Export:** Instantly packages the generated storyboard and textual prompts into a clean, professional A4 PDF Pitch Deck using `html2pdf.js`.
 *   **🔁 Advanced Error Handling:** The FastAPI backend proxy handles image rendering transparently. Rate limited? It uses exponential backoff to automatically retry image generation to ensure success.
 
+## 🛠️ Design Choices & Prompt Engineering Methodology
+
+Our architecture relies on an advanced two-step pipeline that separates **reasoning** from **generation**:
+
+1. **System Prompting (The Director Role):** 
+   We assigned the Groq Llama-3 LLM a highly specific system prompt: `You are an expert cinematic storyboard director.` This forces the LLM to think visually rather than theoretically.
+2. **Strict Output Constraints (Token Optimization):** 
+   Diffusion models like Flux begin to hallucinate or ignore keywords if a prompt exceeds 75 tokens. Therefore, our prompt engineering strictly instructs the LLM to output scene descriptions in under 15 words.
+3. **Keyword Injection:** 
+   The user selects a style (e.g., "Cinematic"). The LLM is instructed to append this exact style keyword alongside rendering parameters (like `highly detailed, 8k, masterpiece`) directly into the image prompt, ensuring the diffusion model has strong contextual anchors for every scene without the user needing to be a prompt engineer.
+
 ## 💻 Running Locally
 
 1. **Clone the repository:**
