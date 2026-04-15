@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Pitch Visualizer — From Words to Storyboard</title>
+    <meta name="description" content="Transform narrative text into AI-generated visual storyboards instantly.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ========================================
+           CSS Reset & Variables
+           ======================================== */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --bg-glass: rgba(255, 255, 255, 0.05);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-active: rgba(139, 92, 246, 0.5);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8b8b9e;
+            --text-muted: #5a5a6e;
+            --accent-purple: #8b5cf6;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-pink: #ec4899;
+            --gradient-primary: linear-gradient(135deg, #8b5cf6, #3b82f6, #06b6d4);
+            --gradient-warm: linear-gradient(135deg, #8b5cf6, #ec4899);
+            --gradient-card: linear-gradient(145deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.05));
+            --shadow-glow: 0 0 40px rgba(139, 92, 246, 0.15);
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-smooth: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* ========================================
+           Background Effects
+           ======================================== */
+        .bg-mesh {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-mesh::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at 20% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 50%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+                        radial-gradient(ellipse at 40% 80%, rgba(6, 182, 212, 0.05) 0%, transparent 50%);
+            animation: meshFloat 20s ease-in-out infinite;
+        }
+
+        @keyframes meshFloat {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, -2%) rotate(1deg); }
+            66% { transform: translate(-1%, 1%) rotate(-0.5deg); }
+        }
+
+        /* ========================================
+           Layout
+           ======================================== */
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* ========================================
+           Header
+           ======================================== */
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .header__badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 16px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border-subtle);
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--accent-purple);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .header__badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: var(--accent-purple);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .header__title {
+            font-size: clamp(36px, 6vw, 64px);
+            font-weight: 900;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.1;
+            margin-bottom: 12px;
+            letter-spacing: -1.5px;
+        }
+
+        .header__subtitle {
+            font-size: 17px;
+            color: var(--text-secondary);
+            font-weight: 400;
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        /* ========================================
+           Input Card
+           ======================================== */
+        .input-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            margin-bottom: 40px;
+            backdrop-filter: blur(20px);
+            box-shadow: var(--shadow-card);
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .input-card__label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+        }
+
+        .input-card__textarea {
+            width: 100%;
+            min-height: 160px;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            line-height: 1.7;
+            resize: vertical;
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+            outline: none;
+        }
+
+        .input-card__textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input-card__textarea:focus {
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+        }
+
+        .input-card__controls {
+            display: flex;
+            gap: 16px;
+            margin-top: 20px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .control-group__label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+        }
+
+        .control-group__select {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color var(--transition-fast);
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b9e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        .control-group__select:focus {
+            border-color: var(--accent-purple);
+        }
+
+        .control-group__select option {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-generate {
+            padding: 12px 32px;
+            background: var(--gradient-primary);
+            border: none;
+            border-radius: var(--radius-md);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-generate::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn-generate:hover::before {
+            left: 100%;
+        }
+
+        .btn-generate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.35);
+        }
+
+        .btn-generate:active {
+            transform: translateY(0);
+        }
+
+        .btn-generate:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ========================================
+           Loading State
+           ======================================== */
+        .loading-section {
+            display: none;
+            text-align: center;
+            padding: 60px 20px;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .loading-section.active {
+            display: block;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border-subtle);
+            border-top-color: var(--accent-purple);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        .loading-section__title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .loading-section__subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .loading-steps {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-top: 32px;
+            flex-wrap: wrap;
+        }
+
+        .loading-step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            transition: color var(--transition-smooth);
+        }
+
+        .loading-step.active {
+            color: var(--accent-purple);
+        }
+
+        .loading-step.done {
+            color: #22c55e;
+        }
+
+        .loading-step__icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid currentColor;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+
+        .loading-step.active .loading-step__icon {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        /* ========================================
+           Error State
+           ======================================== */
+        .error-message {
+            display: none;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            color: #fca5a5;
+            font-size: 14px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .error-message.active {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ========================================
+           Storyboard
+           ======================================== */
+        .storyboard-section {
+            display: none;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .storyboard-section.active {
+            display: block;
+        }
+
+        .storyboard__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .storyboard__title {
+            font-size: 24px;
+            font-weight: 700;
+            background: var(--gradient-warm);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .storyboard__meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .storyboard__grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        /* ========================================
+           Scene Panel
+           ======================================== */
+        .scene-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: transform var(--transition-smooth), box-shadow var(--transition-smooth), border-color var(--transition-smooth);
+            animation: sceneAppear 0.6s ease-out both;
+        }
+
+        .scene-panel:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-glow);
+            border-color: var(--border-active);
+        }
+
+        .scene-panel__image-container {
+            position: relative;
+            width: 100%;
+            padding-top: 100%; /* 1:1 aspect ratio */
+            background: var(--bg-secondary);
+            overflow: hidden;
+        }
+
+        .scene-panel__image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-smooth), opacity 0.5s ease;
+            opacity: 0;
+        }
+
+        .scene-panel__image.loaded {
+            opacity: 1;
+        }
+
+        .scene-panel:hover .scene-panel__image {
+            transform: scale(1.03);
+        }
+
+        .scene-panel__image-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: var(--text-muted);
+        }
+
+        .scene-panel__image-placeholder svg {
+            width: 40px;
+            height: 40px;
+            opacity: 0.4;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .scene-panel__badge {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 100px;
+            letter-spacing: 0.5px;
+            z-index: 2;
+        }
+
+        .scene-panel__content {
+            padding: 20px;
+        }
+
+        .scene-panel__caption {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        .scene-panel__prompt-toggle {
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--accent-purple);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            padding: 0;
+            transition: color var(--transition-fast);
+        }
+
+        .scene-panel__prompt-toggle:hover {
+            color: var(--accent-blue);
+        }
+
+        .scene-panel__prompt {
+            display: none;
+            margin-top: 10px;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .scene-panel__prompt.visible {
+            display: block;
+        }
+
+        /* ========================================
+           Animations
+           ======================================== */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes sceneAppear {
+            from { opacity: 0; transform: translateY(30px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ========================================
+           Responsive
+           ======================================== */
+        @media (max-width: 640px) {
+            .app-container {
+                padding: 24px 16px 60px;
+            }
+
+            .input-card {
+                padding: 20px;
+            }
+
+            .input-card__controls {
+                flex-direction: column;
+            }
+
+            .btn-generate {
+                width: 100%;
+                padding: 14px;
+            }
+
+            .storyboard__grid {
+                grid-template-columns: 1fr;
+            }
+
+            .loading-steps {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background mesh gradient -->
+    <div class="bg-mesh"></div>
+
+    <div class="app-container">
+        <!-- ============ Header ============ -->
+        <header class="header">
+            <div class="header__badge">AI-Powered Storyboarding</div>
+            <h1 class="header__title">The Pitch Visualizer</h1>
+            <p class="header__subtitle">Transform your narrative into a stunning visual storyboard — powered by AI, in seconds.</p>
+        </header>
+
+        <!-- ============ Input Card ============ -->
+        <section class="input-card" id="input-section">
+            <label class="input-card__label" for="narrative-input">Your Narrative</label>
+            <textarea
+                id="narrative-input"
+                class="input-card__textarea"
+                placeholder="Paste your customer success story here (3-5 sentences)...&#10;&#10;Example: When Sarah joined DataFlow Corp, the company's data pipeline was a tangled mess of spreadsheets and manual processes. She championed the adoption of an AI-powered analytics platform that automated 80% of their reporting. Within six months, the team went from spending 20 hours a week on reports to just 2. Today, DataFlow is the fastest-growing analytics firm in the Pacific Northwest, with Sarah leading their innovation division."
+                spellcheck="false"
+            ></textarea>
+
+            <div class="input-card__controls">
+                <div class="control-group">
+                    <label class="control-group__label" for="style-select">Visual Style</label>
+                    <select id="style-select" class="control-group__select">
+                        <option value="Cinematic">🎬 Cinematic</option>
+                        <option value="Watercolor">🎨 Watercolor</option>
+                        <option value="3D Render">🧊 3D Render</option>
+                        <option value="Cyberpunk">🌆 Cyberpunk</option>
+                        <option value="Anime">🌸 Anime</option>
+                        <option value="Oil Painting">🖼️ Oil Painting</option>
+                    </select>
+                </div>
+                <button id="generate-btn" class="btn-generate" onclick="generateStoryboard()">
+                    ✨ Generate Storyboard
+                </button>
+            </div>
+        </section>
+
+        <!-- ============ Error Message ============ -->
+        <div class="error-message" id="error-message">
+            <span>⚠️</span>
+            <span id="error-text"></span>
+        </div>
+
+        <!-- ============ Loading ============ -->
+        <section class="loading-section" id="loading-section">
+            <div class="loading-spinner"></div>
+            <h2 class="loading-section__title">Creating your storyboard...</h2>
+            <p class="loading-section__subtitle">This may take 15-30 seconds</p>
+            <div class="loading-steps">
+                <div class="loading-step active" id="step-analyze">
+                    <div class="loading-step__icon">1</div>
+                    <span>Analyzing narrative</span>
+                </div>
+                <div class="loading-step" id="step-prompt">
+                    <div class="loading-step__icon">2</div>
+                    <span>Engineering prompts</span>
+                </div>
+                <div class="loading-step" id="step-generate">
+                    <div class="loading-step__icon">3</div>
+                    <span>Generating images</span>
+                </div>
+                <div class="loading-step" id="step-assemble">
+                    <div class="loading-step__icon">4</div>
+                    <span>Assembling storyboard</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ Storyboard Results ============ -->
+        <section class="storyboard-section" id="storyboard-section">
+            <div class="storyboard__header">
+                <h2 class="storyboard__title">Your Storyboard</h2>
+                <div class="storyboard__meta">
+                    <span id="scene-count"></span>
+                    <span>•</span>
+                    <span id="style-used"></span>
+                </div>
+            </div>
+            <div class="storyboard__grid" id="storyboard-grid">
+                <!-- Panels injected dynamically -->
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // ====================================================================
+        // State Management
+        // ====================================================================
+        let isGenerating = false;
+
+        // ====================================================================
+        // Loading Step Animation
+        // ====================================================================
+        function setLoadingStep(stepIndex) {
+            const steps = ['step-analyze', 'step-prompt', 'step-generate', 'step-assemble'];
+            steps.forEach((id, i) => {
+                const el = document.getElementById(id);
+                el.classList.remove('active', 'done');
+                if (i < stepIndex) el.classList.add('done');
+                else if (i === stepIndex) el.classList.add('active');
+            });
+        }
+
+        // ====================================================================
+        // Toggle prompt visibility on a scene panel
+        // ====================================================================
+        function togglePrompt(btn) {
+            const promptEl = btn.nextElementSibling;
+            const isVisible = promptEl.classList.contains('visible');
+            promptEl.classList.toggle('visible');
+            btn.textContent = isVisible ? '▸ Show AI prompt' : '▾ Hide AI prompt';
+        }
+
+        // ====================================================================
+        // Create a single scene panel
+        // ====================================================================
+        function createScenePanel(scene, index, total) {
+            const panel = document.createElement('div');
+            panel.className = 'scene-panel';
+            panel.style.animationDelay = `${index * 0.15}s`;
+
+            panel.innerHTML = `
+                <div class="scene-panel__image-container">
+                    <div class="scene-panel__image-placeholder" id="placeholder-${index}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="3"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <path d="M21 15l-5-5L5 21"/>
+                        </svg>
+                        <span style="font-size: 12px;">Loading image...</span>
+                    </div>
+                    <img
+                        class="scene-panel__image"
+                        id="image-${index}"
+                        alt="Scene ${scene.scene_number}"
+                        loading="eager"
+                    >
+                    <div class="scene-panel__badge">Scene ${scene.scene_number} of ${total}</div>
+                </div>
+                <div class="scene-panel__content">
+                    <p class="scene-panel__caption">"${escapeHtml(scene.original_text_segment)}"</p>
+                    <button class="scene-panel__prompt-toggle" onclick="togglePrompt(this)">▸ Show AI prompt</button>
+                    <div class="scene-panel__prompt">${escapeHtml(scene.enhanced_image_prompt)}</div>
+                </div>
+            `;
+
+            return panel;
+        }
+
+        // ====================================================================
+        // Load image with retry logic
+        // ====================================================================
+        function loadImage(imgEl, url, placeholderId) {
+            const img = new Image();
+            img.onload = () => {
+                imgEl.src = url;
+                imgEl.classList.add('loaded');
+                const placeholder = document.getElementById(placeholderId);
+                if (placeholder) placeholder.style.display = 'none';
+            };
+            img.onerror = () => {
+                // Retry after 3 seconds (Pollinations may still be generating)
+                setTimeout(() => {
+                    const retryImg = new Image();
+                    retryImg.onload = () => {
+                        imgEl.src = url + '&retry=1';
+                        imgEl.classList.add('loaded');
+                        const placeholder = document.getElementById(placeholderId);
+                        if (placeholder) placeholder.style.display = 'none';
+                    };
+                    retryImg.src = url + '&retry=1';
+                }, 3000);
+            };
+            img.src = url;
+        }
+
+        // ====================================================================
+        // Escape HTML to prevent XSS
+        // ====================================================================
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ====================================================================
+        // Main Generate Function
+        // ====================================================================
+        async function generateStoryboard() {
+            if (isGenerating) return;
+
+            const text = document.getElementById('narrative-input').value.trim();
+            const style = document.getElementById('style-select').value;
+            const btn = document.getElementById('generate-btn');
+            const loadingSection = document.getElementById('loading-section');
+            const storyboardSection = document.getElementById('storyboard-section');
+            const errorMessage = document.getElementById('error-message');
+            const grid = document.getElementById('storyboard-grid');
+
+            // Clear previous results
+            errorMessage.classList.remove('active');
+            storyboardSection.classList.remove('active');
+            grid.innerHTML = '';
+
+            // Validate input
+            if (text.length < 20) {
+                document.getElementById('error-text').textContent = 'Please enter at least 20 characters of narrative text.';
+                errorMessage.classList.add('active');
+                return;
+            }
+
+            // Start loading
+            isGenerating = true;
+            btn.disabled = true;
+            btn.textContent = '⏳ Generating...';
+            loadingSection.classList.add('active');
+            setLoadingStep(0);
+
+            // Simulate step progression
+            const stepTimers = [
+                setTimeout(() => setLoadingStep(1), 3000),
+                setTimeout(() => setLoadingStep(2), 8000),
+                setTimeout(() => setLoadingStep(3), 18000),
+            ];
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, style }),
+                });
+
+                const data = await response.json();
+
+                // Clear step timers
+                stepTimers.forEach(clearTimeout);
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Failed to generate storyboard');
+                }
+
+                // Hide loading
+                loadingSection.classList.remove('active');
+
+                // Display storyboard
+                const scenes = data.scenes;
+                document.getElementById('scene-count').textContent = `${scenes.length} scenes`;
+                document.getElementById('style-used').textContent = style;
+
+                scenes.forEach((scene, index) => {
+                    const panel = createScenePanel(scene, index, scenes.length);
+                    grid.appendChild(panel);
+
+                    // Load image with slight delay for visual effect
+                    setTimeout(() => {
+                        const imgEl = document.getElementById(`image-${index}`);
+                        loadImage(imgEl, scene.image_url, `placeholder-${index}`);
+                    }, index * 200);
+                });
+
+                storyboardSection.classList.add('active');
+
+                // Scroll to storyboard
+                storyboardSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            } catch (err) {
+                loadingSection.classList.remove('active');
+                stepTimers.forEach(clearTimeout);
+                document.getElementById('error-text').textContent = err.message;
+                errorMessage.classList.add('active');
+            } finally {
+                isGenerating = false;
+                btn.disabled = false;
+                btn.textContent = '✨ Generate Storyboard';
+            }
+        }
+
+        // ====================================================================
+        // Keyboard shortcut: Ctrl+Enter to generate
+        // ====================================================================
+        document.getElementById('narrative-input').addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                generateStoryboard();
+            }
+        });
+    </script>
+</body>
+</html>
