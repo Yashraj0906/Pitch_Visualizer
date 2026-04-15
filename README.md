@@ -1,131 +1,52 @@
-# 🎬 The Pitch Visualizer — From Words to Storyboard
+# 🎬 The Pitch Visualizer
 
-Transform narrative text into a visually compelling, AI-generated storyboard in one click.
+The Pitch Visualizer is an AI-powered tool designed to transform text narratives—like customer success stories, game concepts, or movie pitches—into stunning, professional visual storyboards in seconds. 
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+Built for speed and flexibility, it combines high-speed LLM reasoning with open-source diffusion models to generate consistent, high-quality images without relying on expensive, proprietary API keys.
 
-## 🌟 What It Does
+## 🚀 The Full Flow (How it Works)
 
-Paste a customer success story (3-5 sentences), choose a visual style, and instantly receive a multi-panel storyboard with AI-generated images. The app:
+The architecture is split into a robust backend proxy and a highly interactive frontend:
 
-1. **Segments** your narrative into 3-5 key scenes using an LLM
-2. **Engineers** rich, visually descriptive prompts for each scene
-3. **Generates** images in parallel using AI
-4. **Displays** them as a beautiful sequential storyboard
+1. **User Input:** The user pastes a narrative into the UI and selects an artistic style (e.g., Cinematic, Anime, Vivid).
+2. **LLM Prompt Engineering (Groq):** The backend intercepts the text and sends it to the **Groq API (Llama 3)**. The LLM acts as an expert Director, segmenting the story into 4 distinct scenes. For each scene, it authors a highly optimized, strictly limited (under 15 words) visual prompt.
+3. **Backend Proxy & Retry Logic:** To avoid browser-based URL length errors and CORS issues, the FastAPI backend acts as a proxy. It fetches the images server-side. If the free image endpoint is under heavy traffic (returning a 502/429), the backend automatically implements a 3-attempt exponential backoff retry mechanism.
+4. **Image Generation (Pollinations.ai):** The backend requests the images from **Pollinations.ai**, a powerful proxy that hooks directly into open-source diffusion models like **Flux** and **Stable Diffusion**. This provides DALL-E level quality at zero cost.
+5. **Frontend Rendering:** The browser simultaneously downloads the images, presenting them in a beautiful Glassmorphism UI with premium skeleton-loading "shimmer" animations.
 
-## 🏗️ Architecture
+## ✨ "Wow-Factor" Features
 
-```
-User Input (text + style)
-        │
-        ▼
-┌─────────────────────┐
-│   Groq LLM API      │  ← Narrative segmentation + prompt engineering
-│  (llama-3.1-70b)    │
-└─────────┬───────────┘
-          │ JSON array of scenes
-          ▼
-┌─────────────────────┐
-│  ThreadPoolExecutor  │  ← Parallel image generation
-│   (5 workers)       │
-└─────────┬───────────┘
-          │ Concurrent requests
-          ▼
-┌─────────────────────┐
-│  Pollinations.ai    │  ← Free AI image generation (Flux model)
-│  (No API key needed)│
-└─────────┬───────────┘
-          │ Image URLs
-          ▼
-┌─────────────────────┐
-│  Storyboard UI      │  ← Beautiful HTML storyboard
-│  (Jinja2 + JS)      │
-└─────────────────────┘
-```
+*   **▶️ Presentation Mode:** A built-in immersive pitch deck mode. When clicked, the screen darkens, the images slowly zoom (Ken Burns effect), and the browser natively narrates the story out loud using the Web Speech API.
+*   **📥 PDF Export:** Instantly packages the generated storyboard and textual prompts into a clean, professional A4 PDF Pitch Deck using `html2pdf.js`.
+*   **🔁 Advanced Error Handling:** The UI includes manual retry buttons for individual failed frames, while the backend transparently handles standard rate limits.
 
-## 🚀 Quick Start
+## 🛠️ Tech Stack
 
-### Prerequisites
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- A free [Groq API key](https://console.groq.com/keys)
+*   **Frontend:** Vanilla JS, HTML5, CSS3 (Glassmorphism, CSS Grid, Custom Animations).
+*   **Backend:** Python, FastAPI, Uvicorn.
+*   **LLM Provider:** Groq (`llama-3.1-8b-instant`).
+*   **Image Generation:** Pollinations.ai (Flux/Stable Diffusion).
+*   **Package Management:** `uv`.
 
-### Setup
+## 💻 Running Locally
 
-```bash
-# Clone the repository
-git clone https://github.com/Yashraj0906/Pitch_Visualizer.git
-cd Pitch_Visualizer
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Yashraj0906/Pitch_Visualizer.git
+   cd Pitch_Visualizer
+   ```
 
-# Create virtual environment and install dependencies
-uv venv
-.venv\Scripts\activate      # Windows
-# source .venv/bin/activate  # macOS/Linux
+2. **Set up your environment variables:**
+   Create a `.env` file in the root directory and add your free Groq API key:
+   ```env
+   GROQ_API_KEY=your_groq_api_key_here
+   ```
 
-uv pip install -r requirements.txt
+3. **Install dependencies and run the server:**
+   Using `uv` (the blazing fast Python package manager):
+   ```bash
+   uv run uvicorn main:app --reload
+   ```
 
-# Configure your API key
-copy .env.example .env
-# Edit .env and paste your GROQ_API_KEY
-```
-
-### Run
-
-```bash
-uvicorn main:app --reload
-```
-
-Open your browser at **http://127.0.0.1:8000** 🎉
-
-## 🎨 Visual Styles
-
-Choose from 6 curated art styles for visual consistency:
-
-| Style | Description |
-|-------|------------|
-| 🎬 Cinematic | Film still, 35mm, dramatic lighting |
-| 🎨 Watercolor | Soft washes, brushstrokes, paper texture |
-| 🧊 3D Render | Octane render, volumetric lighting |
-| 🌆 Cyberpunk | Neon lights, futuristic, holographic |
-| 🌸 Anime | Studio Ghibli inspired, vibrant |
-| 🖼️ Oil Painting | Classical art, rich canvas textures |
-
-## 🔧 Tech Stack
-
-| Component | Technology | Cost |
-|-----------|-----------|------|
-| Backend | FastAPI + Uvicorn | Free |
-| LLM Reasoning | Groq API (llama-3.1-70b-versatile) | Free tier |
-| Image Generation | Pollinations.ai (Flux model) | Free, no key |
-| Frontend | Jinja2 + Vanilla JS + CSS | Free |
-| Concurrency | Python ThreadPoolExecutor | Built-in |
-
-## 📁 Project Structure
-
-```
-Pitch_Visualizer/
-├── main.py              # FastAPI backend (routing, LLM, image gen)
-├── requirements.txt     # Python dependencies
-├── .env.example         # API key template
-├── .gitignore           # Git ignore rules
-├── README.md            # This file
-└── templates/
-    └── index.html       # Storyboard UI
-```
-
-## 🧠 Design Decisions
-
-### Prompt Engineering
-The Groq LLM acts as a **Storyboard Director** — it doesn't just split sentences, it understands the narrative arc and generates prompts with specific visual elements: subject, action, setting, lighting, mood, and composition.
-
-### Visual Consistency
-A **style suffix** (e.g., "cinematic film still, 35mm photography, dramatic lighting") is appended to every single prompt. This ensures all panels share a cohesive artistic style.
-
-### Parallel Generation
-Using `ThreadPoolExecutor` with 5 workers, all images generate simultaneously. A 4-panel storyboard takes ~10-15 seconds instead of ~60+ seconds sequentially.
-
-## 📝 License
-
-MIT License — feel free to use, modify, and distribute.
+4. **Open the app:**
+   Navigate to `http://127.0.0.1:8000` in your web browser.
