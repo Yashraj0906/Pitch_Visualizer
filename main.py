@@ -7,13 +7,14 @@ using Groq LLM for prompt engineering and Pollinations.ai for image generation.
 
 import json
 import os
+import random
 import urllib.parse
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import uuid
 
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from groq import Groq
 from pydantic import BaseModel
@@ -35,53 +36,51 @@ templates = Jinja2Templates(directory="templates")
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # LLM model to use
-LLM_MODEL = "qwen/qwen3-32b"
+LLM_MODEL = "llama-3.1-8b-instant"
 
 # Pollinations.ai settings
 POLLINATIONS_BASE = "https://image.pollinations.ai/prompt"
-IMAGE_WIDTH = 1980
-IMAGE_HEIGHT = 1080
+IMAGE_WIDTH = 1024
+IMAGE_HEIGHT = 1024
 
-# Thread pool for parallel image generation
-MAX_WORKERS = 5
+# In-memory store for generated scenes (session_id -> scenes list)
+scene_store: dict[str, list[dict]] = {}
 
 # ---------------------------------------------------------------------------
 # Style Mappings — appended to every image prompt for visual consistency
 # ---------------------------------------------------------------------------
 STYLE_SUFFIXES = {
-    "Cinematic": "cinematic film still, 35mm photography, dramatic lighting, shallow depth of field, anamorphic lens flare",
-    "Watercolor": "watercolor painting, soft washes, artistic brushstrokes, paper texture, delicate color blending",
-    "3D Render": "3D render, octane render, volumetric lighting, studio lighting, high detail, subsurface scattering",
-    "Cyberpunk": "cyberpunk aesthetic, neon lights, rainy night city, holographic elements, futuristic technology, purple and cyan tones",
-    "Anime": "anime style, studio ghibli inspired, vibrant colors, detailed background, cel shading, soft ambient lighting",
-    "Oil Painting": "oil painting on canvas, classical art style, rich textures, museum quality, impasto technique, warm tones",
+    "Cinematic": "cinematic film still, dramatic lighting, shallow depth of field, movie color grading",
+    "Oil Painting": "oil painting on canvas, classical fine art, rich impasto textures, warm golden tones",
+    "Vivid": "ultra vivid colors, high saturation, HDR, punchy contrast, sharp focus",
+    "Black and White": "black and white photography, high contrast monochrome, dramatic shadows, film noir",
+    "Anime": "anime style illustration, vibrant cel shading, detailed background, expressive characters",
 }
 
 # ---------------------------------------------------------------------------
 # System Prompt — instructs the LLM to act as a Storyboard Director
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT = """You are a professional Storyboard Director and Visual Prompt Engineer working for a top-tier creative agency.
+SYSTEM_PROMPT = """You are a Storyboard Director. Break a narrative into 3-5 scenes.
 
-Your task is to take a narrative paragraph and a target visual style, then:
-1. Segment the narrative into 3 to 5 distinct scenes or key moments.
-2. For each scene, write a highly detailed, visually descriptive image generation prompt.
+For each scene produce:
+1. scene_description: One short vivid sentence (used as caption)
+2. enhanced_image_prompt: A SHORT image prompt (MAX 15 words). Be concrete and visual. Example: "Woman in blue suit presenting charts to boardroom executives, golden hour light"
 
-STRICT RULES:
-- Each enhanced prompt MUST include: specific subject description, clear action/pose, detailed setting/environment, lighting direction and quality, emotional mood, and camera composition/angle.
-- NEVER use abstract, conceptual, or metaphorical language in prompts — be concrete, specific, and visual.
-- Maintain character appearance consistency across all scenes (same clothing, hair, features).
-- Maintain setting consistency where appropriate (same office, same city, etc.).
-- Each prompt should be 2-3 sentences long, packed with visual detail.
-- Do NOT include any text, watermarks, or logos in the image descriptions.
-- Do NOT include the style suffix — it will be appended automatically.
+CRITICAL RULES:
+- Prompts MUST be under 15 words. Shorter is better.
+- Lead with subject, then action, then setting
+- NO abstract concepts, NO metaphors, NO emotions as words
+- Keep character appearance consistent across scenes
+- NO text/logos/watermarks in prompts
+- Do NOT add art style — it gets added automatically
 
-You MUST return ONLY a valid JSON object with this exact structure (no markdown, no explanation, no extra text):
+Return ONLY valid JSON:
 {
   "scenes": [
     {
       "scene_number": 1,
-      "original_text_segment": "The exact portion of the original text this scene covers",
-      "enhanced_image_prompt": "Your detailed, visually rich prompt for image generation"
+      "scene_description": "Caption sentence here",
+      "enhanced_image_prompt": "Short concrete visual prompt here"
     }
   ]
 }"""
@@ -97,7 +96,7 @@ class GenerateRequest(BaseModel):
 
 class SceneResponse(BaseModel):
     scene_number: int
-    original_text_segment: str
+    scene_description: str
     enhanced_image_prompt: str
     image_url: str
 
@@ -110,13 +109,12 @@ def segment_and_engineer_prompts(text: str, style: str) -> list[dict]:
     Call Groq LLM to segment narrative text into scenes and generate
     enhanced image prompts for each scene.
     """
-    user_message = f"""Narrative Text:
+    user_message = f"""Narrative:
 \"\"\"{text}\"\"\"
 
-Visual Style: {style}
+Style: {style}
 
-Segment this narrative into 3-5 key scenes and generate enhanced image prompts for each. 
-Remember to be extremely visual and specific in your prompts. Return valid JSON only."""
+Break into 3-5 scenes. Keep enhanced_image_prompt UNDER 15 words each. JSON only."""
 
     response = groq_client.chat.completions.create(
         model=LLM_MODEL,
@@ -124,61 +122,13 @@ Remember to be extremely visual and specific in your prompts. Return valid JSON 
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
-        temperature=0.7,
-        max_tokens=2048,
+        temperature=0.6,
+        max_tokens=1024,
         response_format={"type": "json_object"},
     )
 
     result = json.loads(response.choices[0].message.content)
     return result.get("scenes", [])
-
-
-def build_image_url(prompt: str, style: str) -> str:
-    """
-    Construct a Pollinations.ai image URL from an enhanced prompt + style suffix.
-    """
-    style_suffix = STYLE_SUFFIXES.get(style, "")
-    full_prompt = f"{prompt}, {style_suffix}" if style_suffix else prompt
-
-    encoded_prompt = urllib.parse.quote(full_prompt)
-    return (
-        f"{POLLINATIONS_BASE}/{encoded_prompt}"
-        f"?width={IMAGE_WIDTH}&height={IMAGE_HEIGHT}&nologo=true"
-    )
-
-
-def prewarm_image(url: str) -> str:
-    """
-    Fire a GET request to Pollinations.ai to trigger image generation.
-    Returns the URL once the image is ready (or on timeout).
-    """
-    try:
-        requests.get(url, timeout=120)
-    except requests.exceptions.Timeout:
-        pass  # URL will still work — browser will load it
-    except requests.exceptions.RequestException:
-        pass  # Graceful fallback — return URL anyway
-    return url
-
-
-def generate_images_parallel(scenes: list[dict], style: str) -> list[dict]:
-    """
-    Build image URLs for all scenes and pre-warm them in parallel
-    using ThreadPoolExecutor.
-    """
-    # Build URLs for each scene
-    for scene in scenes:
-        scene["image_url"] = build_image_url(scene["enhanced_image_prompt"], style)
-
-    # Pre-warm all URLs in parallel (triggers Pollinations generation)
-    urls = [scene["image_url"] for scene in scenes]
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(prewarm_image, url): url for url in urls}
-        for future in as_completed(futures):
-            future.result()  # Wait for all to complete
-
-    return scenes
 
 
 # ---------------------------------------------------------------------------
@@ -194,9 +144,8 @@ async def home(request: Request):
 async def generate_storyboard(req: GenerateRequest):
     """
     Main endpoint: takes narrative text + style, returns a storyboard
-    with segmented scenes, enhanced prompts, and generated image URLs.
+    with segmented scenes, enhanced prompts, and image URLs served via proxy.
     """
-    # Validate input
     if not req.text or len(req.text.strip()) < 20:
         return JSONResponse(
             status_code=400,
@@ -219,10 +168,26 @@ async def generate_storyboard(req: GenerateRequest):
                 content={"error": "The LLM failed to segment the narrative. Please try again."},
             )
 
-        # Step 2: Parallel image generation via Pollinations.ai
-        scenes_with_images = generate_images_parallel(scenes, req.style)
+        # Step 2: Generate a session ID and store scenes
+        session_id = str(uuid.uuid4())[:8]
+        
+        # Build full prompts with style suffix and store them
+        style_suffix = STYLE_SUFFIXES.get(req.style, "")
+        for i, scene in enumerate(scenes):
+            prompt = scene["enhanced_image_prompt"]
+            full_prompt = f"{prompt}, {style_suffix}" if style_suffix else prompt
+            scene["_full_prompt"] = full_prompt
+            # Image URL points to our own proxy endpoint
+            scene["image_url"] = f"/image/{session_id}/{i}"
+        
+        scene_store[session_id] = scenes
+        
+        # Clean up old sessions (keep max 20)
+        if len(scene_store) > 20:
+            oldest_key = next(iter(scene_store))
+            del scene_store[oldest_key]
 
-        return {"scenes": scenes_with_images}
+        return {"scenes": scenes}
 
     except json.JSONDecodeError:
         return JSONResponse(
@@ -234,6 +199,62 @@ async def generate_storyboard(req: GenerateRequest):
             status_code=500,
             content={"error": f"An unexpected error occurred: {str(e)}"},
         )
+
+
+@app.get("/image/{session_id}/{scene_index}")
+async def proxy_image(session_id: str, scene_index: int):
+    """
+    Proxy endpoint that fetches images from Pollinations.ai on behalf of the browser.
+    Retries up to 3 times with different seeds if Pollinations fails.
+    """
+    import time as _time
+    
+    # Look up the scene
+    scenes = scene_store.get(session_id)
+    if not scenes or scene_index >= len(scenes):
+        return JSONResponse(status_code=404, content={"error": "Scene not found"})
+    
+    scene = scenes[scene_index]
+    full_prompt = scene.get("_full_prompt", scene["enhanced_image_prompt"])
+    encoded_prompt = urllib.parse.quote(full_prompt)
+    
+    MAX_RETRIES = 3
+    RETRY_DELAYS = [0, 2, 5]  # seconds to wait before each attempt
+    last_error = None
+    
+    for attempt in range(MAX_RETRIES):
+        if RETRY_DELAYS[attempt] > 0:
+            _time.sleep(RETRY_DELAYS[attempt])
+        
+        seed = random.randint(1, 999999)
+        pollinations_url = (
+            f"{POLLINATIONS_BASE}/{encoded_prompt}"
+            f"?width={IMAGE_WIDTH}&height={IMAGE_HEIGHT}&nologo=true&seed={seed}"
+        )
+        
+        try:
+            resp = requests.get(pollinations_url, timeout=120)
+            
+            # Check if we got actual image data back
+            content_type = resp.headers.get("content-type", "")
+            if resp.status_code == 200 and "image" in content_type:
+                return Response(
+                    content=resp.content,
+                    media_type=content_type,
+                    headers={"Cache-Control": "public, max-age=3600"},
+                )
+            
+            # Not an image — treat as error, retry
+            last_error = f"Status {resp.status_code}, type: {content_type}"
+            
+        except requests.exceptions.RequestException as e:
+            last_error = str(e)
+    
+    # All retries exhausted
+    return JSONResponse(
+        status_code=502,
+        content={"error": f"Image generation failed after {MAX_RETRIES} attempts: {last_error}"}
+    )
 
 
 # ---------------------------------------------------------------------------

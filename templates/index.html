@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- html2pdf for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         /* ========================================
            CSS Reset & Variables
@@ -155,6 +157,43 @@
             font-weight: 400;
             max-width: 520px;
             margin: 0 auto;
+        }
+
+        /* ========================================
+           Demo Prompts
+           ======================================== */
+        .demo-prompts {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: -4px; /* to align well with label */
+            flex-wrap: wrap;
+        }
+
+        .demo-prompts span {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .demo-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .demo-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: white;
+            transform: translateY(-1px);
         }
 
         /* ========================================
@@ -467,8 +506,19 @@
             position: relative;
             width: 100%;
             padding-top: 100%; /* 1:1 aspect ratio */
-            background: var(--bg-secondary);
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-card) 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite linear;
             overflow: hidden;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
         }
 
         .scene-panel__image {
@@ -515,15 +565,70 @@
             position: absolute;
             top: 12px;
             left: 12px;
-            background: rgba(0, 0, 0, 0.7);
+            width: 32px;
+            height: 32px;
+            background: rgba(0, 0, 0, 0.65);
             backdrop-filter: blur(10px);
             color: white;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 4px 12px;
-            border-radius: 100px;
-            letter-spacing: 0.5px;
+            font-size: 14px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
             z-index: 2;
+            border: 1.5px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .scene-panel__download {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(10px);
+            color: white;
+            border: 1.5px solid rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            transition: background var(--transition-fast), transform var(--transition-fast);
+            padding: 0;
+        }
+
+        .scene-panel__download:hover {
+            background: var(--accent-purple);
+            transform: scale(1.1);
+            border-color: var(--accent-purple);
+        }
+
+        .scene-panel__download svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .scene-panel__retry {
+            margin-top: 8px;
+            padding: 8px 20px;
+            background: var(--gradient-primary);
+            color: white;
+            border: none;
+            border-radius: 100px;
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+            display: none;
+        }
+
+        .scene-panel__retry:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
         }
 
         .scene-panel__content {
@@ -603,6 +708,82 @@
             50% { opacity: 0.4; }
         }
 
+        @keyframes kenBurns {
+            0% { transform: scale(1) translate(0, 0); }
+            50% { transform: scale(1.1) translate(-2%, -2%); }
+            100% { transform: scale(1.05) translate(2%, 2%); }
+        }
+
+        /* ========================================
+           Presentation Overlay
+           ======================================== */
+        .presentation-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000;
+            z-index: 9999;
+            display: none;
+            opacity: 0;
+            transition: opacity 1s ease;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .presentation-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .presentation__image {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: contain;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .presentation__image.active {
+            opacity: 1;
+            animation: kenBurns 15s ease infinite alternate;
+        }
+
+        .presentation__caption {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 900px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 24px 32px;
+            border-radius: var(--radius-lg);
+            font-size: 24px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0;
+            transition: opacity 1s ease;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+
+        .presentation__caption.active {
+            opacity: 1;
+        }
+
+        .presentation__close {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 100px;
+            cursor: pointer;
+            z-index: 10000;
+        }
+
         /* ========================================
            Responsive
            ======================================== */
@@ -649,11 +830,19 @@
 
         <!-- ============ Input Card ============ -->
         <section class="input-card" id="input-section">
-            <label class="input-card__label" for="narrative-input">Your Narrative</label>
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <label class="input-card__label" for="narrative-input" style="margin-bottom: 12px;">Your Narrative</label>
+                <div class="demo-prompts">
+                    <span>Try a Demo:</span>
+                    <button class="demo-btn" onclick="fillDemo(1)">Hero's Journey</button>
+                    <button class="demo-btn" onclick="fillDemo(2)">Tech Launch</button>
+                    <button class="demo-btn" onclick="fillDemo(3)">Sci-Fi Epic</button>
+                </div>
+            </div>
             <textarea
                 id="narrative-input"
                 class="input-card__textarea"
-                placeholder="Paste your customer success story here (3-5 sentences)...&#10;&#10;Example: When Sarah joined DataFlow Corp, the company's data pipeline was a tangled mess of spreadsheets and manual processes. She championed the adoption of an AI-powered analytics platform that automated 80% of their reporting. Within six months, the team went from spending 20 hours a week on reports to just 2. Today, DataFlow is the fastest-growing analytics firm in the Pacific Northwest, with Sarah leading their innovation division."
+                placeholder="Paste your customer success story here (3-5 sentences)..."
                 spellcheck="false"
             ></textarea>
 
@@ -662,11 +851,10 @@
                     <label class="control-group__label" for="style-select">Visual Style</label>
                     <select id="style-select" class="control-group__select">
                         <option value="Cinematic">🎬 Cinematic</option>
-                        <option value="Watercolor">🎨 Watercolor</option>
-                        <option value="3D Render">🧊 3D Render</option>
-                        <option value="Cyberpunk">🌆 Cyberpunk</option>
-                        <option value="Anime">🌸 Anime</option>
                         <option value="Oil Painting">🖼️ Oil Painting</option>
+                        <option value="Vivid">🌈 Vivid</option>
+                        <option value="Black and White">⬛ Black & White</option>
+                        <option value="Anime">🌸 Anime</option>
                     </select>
                 </div>
                 <button id="generate-btn" class="btn-generate" onclick="generateStoryboard()">
@@ -685,7 +873,7 @@
         <section class="loading-section" id="loading-section">
             <div class="loading-spinner"></div>
             <h2 class="loading-section__title">Creating your storyboard...</h2>
-            <p class="loading-section__subtitle">This may take 15-30 seconds</p>
+            <p class="loading-section__subtitle">This may take 20-40 seconds — generating all images in parallel</p>
             <div class="loading-steps">
                 <div class="loading-step active" id="step-analyze">
                     <div class="loading-step__icon">1</div>
@@ -709,17 +897,35 @@
         <!-- ============ Storyboard Results ============ -->
         <section class="storyboard-section" id="storyboard-section">
             <div class="storyboard__header">
-                <h2 class="storyboard__title">Your Storyboard</h2>
-                <div class="storyboard__meta">
-                    <span id="scene-count"></span>
-                    <span>•</span>
-                    <span id="style-used"></span>
+                <div>
+                    <h2 class="storyboard__title">Your Storyboard</h2>
+                    <div class="storyboard__meta">
+                        <span id="scene-count"></span>
+                        <span>•</span>
+                        <span id="style-used"></span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <button class="demo-btn" onclick="playPresentation()" style="background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.5); font-size: 14px; padding: 8px 16px;">
+                        ▶ Play Pitch
+                    </button>
+                    <button class="demo-btn" onclick="exportToPDF()" style="font-size: 14px; padding: 8px 16px;">
+                        📥 Export PDF
+                    </button>
                 </div>
             </div>
             <div class="storyboard__grid" id="storyboard-grid">
                 <!-- Panels injected dynamically -->
             </div>
         </section>
+    </div>
+
+    <!-- ============ Presentation Overlay ============ -->
+    <div class="presentation-overlay" id="presentation-overlay" onclick="closePresentation()">
+        <button class="presentation__close">ESC to Close</button>
+        <!-- Images injected here dynamically -->
+        <div id="presentation-images"></div>
+        <div class="presentation__caption" id="presentation-caption"></div>
     </div>
 
     <script>
@@ -768,6 +974,7 @@
                             <path d="M21 15l-5-5L5 21"/>
                         </svg>
                         <span style="font-size: 12px;">Loading image...</span>
+                        <button class="scene-panel__retry" id="retry-btn-${index}" onclick="retryImage(${index}, '${scene.image_url}')">🔄 Retry</button>
                     </div>
                     <img
                         class="scene-panel__image"
@@ -775,10 +982,17 @@
                         alt="Scene ${scene.scene_number}"
                         loading="eager"
                     >
-                    <div class="scene-panel__badge">Scene ${scene.scene_number} of ${total}</div>
+                    <div class="scene-panel__badge">${scene.scene_number}</div>
+                    <button class="scene-panel__download" onclick="downloadImage('${scene.image_url}', 'scene-${scene.scene_number}')" title="Download image">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                    </button>
                 </div>
                 <div class="scene-panel__content">
-                    <p class="scene-panel__caption">"${escapeHtml(scene.original_text_segment)}"</p>
+                    <p class="scene-panel__caption">${escapeHtml(scene.scene_description)}</p>
                     <button class="scene-panel__prompt-toggle" onclick="togglePrompt(this)">▸ Show AI prompt</button>
                     <div class="scene-panel__prompt">${escapeHtml(scene.enhanced_image_prompt)}</div>
                 </div>
@@ -788,30 +1002,73 @@
         }
 
         // ====================================================================
+        // Download image to user's device
+        // ====================================================================
+        async function downloadImage(url, filename) {
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `${filename}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+            } catch (err) {
+                // Fallback: open in new tab
+                window.open(url, '_blank');
+            }
+        }
+
+        // ====================================================================
         // Load image with retry logic
         // ====================================================================
         function loadImage(imgEl, url, placeholderId) {
             const img = new Image();
             img.onload = () => {
-                imgEl.src = url;
+                imgEl.src = img.src;
                 imgEl.classList.add('loaded');
                 const placeholder = document.getElementById(placeholderId);
                 if (placeholder) placeholder.style.display = 'none';
             };
             img.onerror = () => {
-                // Retry after 3 seconds (Pollinations may still be generating)
-                setTimeout(() => {
-                    const retryImg = new Image();
-                    retryImg.onload = () => {
-                        imgEl.src = url + '&retry=1';
-                        imgEl.classList.add('loaded');
-                        const placeholder = document.getElementById(placeholderId);
-                        if (placeholder) placeholder.style.display = 'none';
-                    };
-                    retryImg.src = url + '&retry=1';
-                }, 3000);
+                // Show retry button and error text immediately
+                const placeholder = document.getElementById(placeholderId);
+                if (placeholder) {
+                    const span = placeholder.querySelector('span');
+                    if (span) span.textContent = 'Image failed to load';
+                    const retryBtn = placeholder.querySelector('.scene-panel__retry');
+                    if (retryBtn) retryBtn.style.display = 'inline-block';
+                }
             };
+            // Simply fire the request and let the browser wait for Pollinations
             img.src = url;
+        }
+
+        // ====================================================================
+        // Manual retry image
+        // ====================================================================
+        function retryImage(index, base_url) {
+            const placeholderId = `placeholder-${index}`;
+            const placeholder = document.getElementById(placeholderId);
+            const imgEl = document.getElementById(`image-${index}`);
+            
+            if (placeholder && imgEl) {
+                // Reset placeholder UI
+                const span = placeholder.querySelector('span');
+                if (span) span.textContent = 'Loading image...';
+                
+                const retryBtn = placeholder.querySelector('.scene-panel__retry');
+                if (retryBtn) retryBtn.style.display = 'none';
+
+                // Add a cache buster timestamp ONLY on manual retry
+                const retryUrl = base_url + `?t=${Date.now()}`;
+                
+                // Restart the load image process
+                loadImage(imgEl, retryUrl, placeholderId);
+            }
         }
 
         // ====================================================================
@@ -856,11 +1113,11 @@
             loadingSection.classList.add('active');
             setLoadingStep(0);
 
-            // Simulate step progression
+            // Simulate step progression (LLM ~2-3s, images ~15-30s)
             const stepTimers = [
-                setTimeout(() => setLoadingStep(1), 3000),
-                setTimeout(() => setLoadingStep(2), 8000),
-                setTimeout(() => setLoadingStep(3), 18000),
+                setTimeout(() => setLoadingStep(1), 2000),
+                setTimeout(() => setLoadingStep(2), 5000),
+                setTimeout(() => setLoadingStep(3), 20000),
             ];
 
             try {
@@ -884,6 +1141,7 @@
 
                 // Display storyboard
                 const scenes = data.scenes;
+                window.globalScenes = scenes; // Save globally for presentation mode
                 document.getElementById('scene-count').textContent = `${scenes.length} scenes`;
                 document.getElementById('style-used').textContent = style;
 
@@ -923,6 +1181,170 @@
                 generateStoryboard();
             }
         });
+        // ====================================================================
+        // Fill Demo Prompts
+        // ====================================================================
+        function fillDemo(id) {
+            const textarea = document.getElementById('narrative-input');
+            const styleSelect = document.getElementById('style-select');
+            
+            if (id === 1) {
+                textarea.value = "The dusty tavern fell silent as Kael kicked open the heavy oak doors, silhouetted against the blinding desert sun. He slowly approached the trembling barkeep, tossing a heavy leather pouch of gold onto the counter. A mysterious cloaked figure in the corner watched him closely, a glowing blue dagger resting on the table.";
+                styleSelect.value = "Cinematic";
+            } else if (id === 2) {
+                textarea.value = "CEO Maya Chen stepped onto the darkened keynote stage, a massive pristine screen behind her. As she raised her hands, a sleek, glass-and-steel drone materialized beside her. The crowd of thousands erupted in applause as the drone's glowing optical sensors scanned the audience, projecting a massive holographic globe that spun in midair.";
+                styleSelect.value = "Vivid";
+            } else if (id === 3) {
+                textarea.value = "Captain Elara gripped the controls of the rusted star-freighter as alarms blared red across the cockpit. Through the cracked viewport, a massive alien singularity ripped through the velvet starfield, swallowing light itself. With seconds to spare, she slammed the hyper-drive lever forward, launching the ship into blinding white hyperspace.";
+                styleSelect.value = "Anime";
+            }
+        }
+
+        // ====================================================================
+        // Feature 1: Presentation Mode (Audio + Ken Burns)
+        // ====================================================================
+        let presentationActive = false;
+        let currentPresentationScene = 0;
+        
+        async function playPresentation() {
+            if (!globalScenes || globalScenes.length === 0) return;
+            
+            presentationActive = true;
+            currentPresentationScene = 0;
+            
+            const overlay = document.getElementById('presentation-overlay');
+            const imagesContainer = document.getElementById('presentation-images');
+            
+            // Rebuild images
+            imagesContainer.innerHTML = '';
+            globalScenes.forEach((scene, i) => {
+                const img = document.createElement('img');
+                img.src = document.getElementById(`image-${i}`).src; // Use loaded src
+                img.className = 'presentation__image';
+                img.id = `pres-img-${i}`;
+                imagesContainer.appendChild(img);
+            });
+            
+            overlay.classList.add('active');
+            
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+            
+            // Start the loop
+            playNextScene();
+        }
+        
+        function playNextScene() {
+            if (!presentationActive || currentPresentationScene >= globalScenes.length) {
+                if (currentPresentationScene >= globalScenes.length) {
+                    setTimeout(closePresentation, 2000);
+                }
+                return;
+            }
+            
+            const scene = globalScenes[currentPresentationScene];
+            
+            // UI Crossfade
+            document.querySelectorAll('.presentation__image').forEach(el => el.classList.remove('active'));
+            document.getElementById(`pres-img-${currentPresentationScene}`).classList.add('active');
+            
+            const caption = document.getElementById('presentation-caption');
+            caption.classList.remove('active');
+            
+            setTimeout(() => {
+                caption.textContent = scene.scene_description;
+                caption.classList.add('active');
+                
+                // Speak the text
+                const utterance = new SpeechSynthesisUtterance(scene.scene_description);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+                
+                // When finished reading, wait 1 second, then next
+                utterance.onend = () => {
+                    setTimeout(() => {
+                        currentPresentationScene++;
+                        playNextScene();
+                    }, 1500);
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }, 600); // Wait for image fade in
+        }
+        
+        function closePresentation() {
+            presentationActive = false;
+            window.speechSynthesis.cancel();
+            document.getElementById('presentation-overlay').classList.remove('active');
+        }
+        
+        // Ensure Escape key cancels presentation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && presentationActive) {
+                closePresentation();
+            }
+        });
+
+        // ====================================================================
+        // Feature 3: Export to PDF
+        // ====================================================================
+        function exportToPDF() {
+            const originalElement = document.getElementById('storyboard-section');
+            
+            // 1. Create a clone to manipulate
+            const clone = originalElement.cloneNode(true);
+            
+            // 2. Style the clone explicitly for A4 rendering
+            clone.style.background = '#0a0a0f'; 
+            clone.style.padding = '40px';
+            clone.style.width = '1200px'; // Force a fixed width for perfect high-res PDF rendering
+            
+            // 3. Fix the grid layout so html2canvas doesn't squish it
+            const grid = clone.querySelector('.storyboard__grid');
+            if(grid) {
+                grid.style.display = 'flex';
+                grid.style.flexWrap = 'wrap';
+                grid.style.gap = '40px';
+            }
+            
+            // 4. Protect panels from being cut off between pages
+            Array.from(clone.querySelectorAll('.scene-panel')).forEach(el => {
+                el.style.width = '100%'; // Make panels full width on the PDF
+                el.style.marginBottom = '20px';
+                el.style.pageBreakInside = 'avoid'; // Crucial for clean PDFs
+            });
+
+            // 5. Clean up UI elements we don't want in the PDF
+            Array.from(clone.querySelectorAll('.scene-panel__prompt')).forEach(el => el.style.display = 'block');
+            Array.from(clone.querySelectorAll('.scene-panel__prompt-toggle')).forEach(el => el.style.display = 'none');
+            Array.from(clone.querySelectorAll('.scene-panel__download')).forEach(el => el.style.display = 'none');
+            Array.from(clone.querySelectorAll('.scene-panel__retry')).forEach(el => el.style.display = 'none');
+            
+            // Hide the Action Buttons (Export PDF, Play Pitch) from the header in the PDF
+            const actionContainer = clone.querySelector('.storyboard__header > div:nth-child(2)');
+            if(actionContainer) actionContainer.style.display = 'none';
+
+            // 6. We must temporarily append the clone to the document for perfect font rendering
+            const container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
+            container.appendChild(clone);
+            document.body.appendChild(container);
+
+            const opt = {
+              margin:       15,
+              filename:     'Pitch_Deck_Storyboard.pdf',
+              image:        { type: 'jpeg', quality: 1.0 },
+              html2canvas:  { scale: 2, useCORS: true, logging: false },
+              jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            // 7. Generate PDF and then instantly clean up the invisible clone
+            html2pdf().set(opt).from(clone).save().then(() => {
+                document.body.removeChild(container);
+            });
+        }
+
     </script>
 </body>
 </html>
